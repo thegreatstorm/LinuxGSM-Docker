@@ -1,11 +1,18 @@
-#
-# LinuxGSM Dockerfile
-#
-# https://github.com/GameServerManagers/LinuxGSM-Docker
-#
-
 FROM ubuntu:18.04
-LABEL maintainer="LinuxGSM <me@danielgibbs.co.uk>"
+
+RUN apt-get update && apt-get install -y openssh-server
+RUN mkdir /var/run/sshd
+RUN echo 'root:admin123' | chpasswd
+RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# SSH login fix. Otherwise user is kicked off after login
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+
+ENV NOTVISIBLE "in users profile"
+RUN echo "export VISIBLE=now" >> /etc/profile
+
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D"]
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -17,21 +24,23 @@ ENV LANG en_US.utf8
 RUN dpkg --add-architecture i386 && \
 	apt update -y && \
 	apt install -y \
-		iproute2 \
 		mailutils \
 		postfix \
 		curl \
 		wget \
 		file \
 		bzip2 \
+        openssh-server \
 		gzip \
+        vim \
 		unzip \
 		bsdmainutils \
 		python \
 		util-linux \
 		binutils \
 		bc \
-		jq \
+        netcat \
+        jq \
 		tmux \
 		lib32gcc1 \
 		libstdc++6 \
@@ -43,13 +52,12 @@ RUN dpkg --add-architecture i386 && \
 		libncurses5:i386 \
 		libcurl4-gnutls-dev:i386 \
 		libstdc++5:i386 \
-		netcat \
-		lib32stdc++6 \		
 		lib32tinfo5 \
 		xz-utils \
 		zlib1g:i386 \
 		libldap-2.4-2:i386 \
 		lib32z1 \
+		iproute2 \
 		default-jre \
 		speex:i386 \
 		libtbb2 \
@@ -68,37 +76,18 @@ RUN dpkg --add-architecture i386 && \
 		libnm-glib-dev:i386 \
 		&& apt-get clean \
 	  && rm -rf /var/lib/apt/lists/*
-
+	  
 # Add the linuxgsm user
-RUN adduser \
-      --disabled-login \
-      --disabled-password \
-      --shell /bin/bash \
-      --gecos "" \
-      linuxgsm \
-    && usermod -G tty linuxgsm \
-    && chown -R linuxgsm:linuxgsm /home/linuxgsm
-
-# Switch to the user linuxgsm
-USER linuxgsm
-
+RUN adduser linuxgsm --no-create-home --disabled-password --gecos ""
+RUN echo 'linuxgsm:admin123' | chpasswd
 
 ## linuxgsm.sh
-RUN wget https://linuxgsm.com/dl/linuxgsm.sh
+RUN wget https://linuxgsm.com/dl/linuxgsm.sh -P /home/linuxgsm
 
 ## user config
-RUN groupadd -g 750 -o linuxgsm && \
-	adduser --uid 750 --disabled-password --gecos "" --ingroup linuxgsm linuxgsm && \
-	chown linuxgsm:linuxgsm /linuxgsm.sh && \
-	chmod +x /linuxgsm.sh && \
-	cp /linuxgsm.sh /home/linuxgsm/linuxgsm.sh && \
-	usermod -G tty linuxgsm && \
-	chown -R linuxgsm:linuxgsm /home/linuxgsm/ && \
-	chmod 755 /home/linuxgsm
-
-USER linuxgsm
-WORKDIR /home/linuxgsm
-VOLUME [ "/home/linuxgsm" ]
+RUN chown linuxgsm:linuxgsm -R /home/linuxgsm
+RUN chmod +x /home/linuxgsm/linuxgsm.sh
+RUN chmod 755 /home/linuxgsm
 
 # need use xterm for LinuxGSM
 ENV TERM=xterm
